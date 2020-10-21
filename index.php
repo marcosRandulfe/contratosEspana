@@ -90,6 +90,8 @@
         $elementos[$num_elemento]->click();
         $numExpediente=$driver->findElement(WebDriverBy::xpath("//span[text()='Expediente:']/following-sibling::span"))->getText();
         echo "<p>".$numExpediente."</p>";
+        $datos = $driver->findElement(WebDriverBy::tagName('ul'));
+        echo "<p>".$datos->getText()."</p>";
         $num_elemento++;
         $driver = searchGalicia($driver);
         $elementos = $driver->findElements(WebDriverBy::xpath("//table[@id='myTablaBusquedaCustom']/tbody/tr/td[1]//a"));
