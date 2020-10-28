@@ -67,76 +67,37 @@ $desiredCapabilities = new DesiredCapabilities(array(
     WebDriverCapabilityType::BROWSER_NAME => "firefox",
         ));
 $desiredCapabilities->setCapability(WebDriverCapabilityType::APPLICATION_CACHE_ENABLED, true);
+
 // Firefox
 $driver = RemoteWebDriver::create($host, DesiredCapabilities::firefox());
-$driver->get('https://contrataciondelestado.es/wps/portal/licitaciones');
-//span[text()='Licitaciones']/../..
-$elemento = $driver->findElement(WebDriverBy::xpath("//span[text()='Licitaciones']"));
-$elemento->click();
-$elemento = $driver->findElement(WebDriverBy::xpath("//select/option[@value='ES']"));
-$elemento->click();
-$elemento = $driver->findElement(WebDriverBy::xpath("//span[text()='Seleccione demarcación territorial (NUTS)']"));
-$elemento->click();
 
-//$elemento= $driver->findElement(WebDriverBy::cssSelector("#capa_oculta"));
-//$elemento->clear();
-//input[@title='Buscar']
-$elemento = $driver->findElement(WebDriverBy::xpath("//select/option[text()='ES11   Galicia']"));
-$elemento->click();
-
-$elemento = $driver->findElement(WebDriverBy::xpath("//input[@value='Aceptar']"));
-$elemento->click();
-
-/*
-  $elemento= $driver->findElement(WebDriverBy::cssSelector("#capa_oculta"));
-  $elemento->clear();
+/**
+ * Funcion que coloca el driver en la busqueda de Galicia
+ * @param type $driver
+ * @return type
  */
-//ES11   Galicia
-$elemento = $driver->findElement(WebDriverBy::xpath("//input[@value='Buscar']"));
-$elemento->click();
-
-//$elemento=$driver->findElement(WebDriverBy::id("myTablaBusquedaCustom"));
-var_dump(WebDriverBy::id('myTablaBusquedaCustom'));
-$driver->wait(10, 100)->until(WebDriverExpectedCondition::visibilityOfElementLocated(WebDriverBy::id('myTablaBusquedaCustom')));
-
 function searchGalicia($driver) {
 
     $driver->get('https://contrataciondelestado.es/wps/portal/licitaciones');
-    //span[text()='Licitaciones']/../..
     $elemento = $driver->findElement(WebDriverBy::xpath("//span[text()='Licitaciones']"));
     $elemento->click();
     $elemento = $driver->findElement(WebDriverBy::xpath("//select/option[@value='ES']"));
     $elemento->click();
     $elemento = $driver->findElement(WebDriverBy::xpath("//span[text()='Seleccione demarcación territorial (NUTS)']"));
+    $driver->wait()->until(WebDriverExpectedCondition::elementToBeClickable(WebDriverBy::xpath("//span[text()='Seleccione demarcación territorial (NUTS)']")));
     $elemento->click();
-
-    //$elemento= $driver->findElement(WebDriverBy::cssSelector("#capa_oculta"));
-    //$elemento->clear();
-    //input[@title='Buscar']
     $elemento = $driver->findElement(WebDriverBy::xpath("//select/option[text()='ES11   Galicia']"));
+    $driver->wait()->until(WebDriverExpectedCondition::elementToBeClickable(WebDriverBy::xpath("//select/option[text()='ES11   Galicia']")));
     $elemento->click();
-
     $elemento = $driver->findElement(WebDriverBy::xpath("//input[@value='Aceptar']"));
     $elemento->click();
-
-    /*
-      $elemento= $driver->findElement(WebDriverBy::cssSelector("#capa_oculta"));
-      $elemento->clear();
-     */
     //ES11   Galicia
     $elemento = $driver->findElement(WebDriverBy::xpath("//input[@value='Buscar']"));
     $elemento->click();
-
-    //$elemento=$driver->findElement(WebDriverBy::id("myTablaBusquedaCustom"));
-    var_dump(WebDriverBy::id('myTablaBusquedaCustom'));
     $driver->wait(10, 100)->until(WebDriverExpectedCondition::visibilityOfElementLocated(WebDriverBy::id('myTablaBusquedaCustom')));
     return $driver;
 }
 
-$driver = searchGalicia($driver);
-$elementos = $driver->findElements(WebDriverBy::xpath("//table[@id='myTablaBusquedaCustom']/tbody/tr/td[1]//a"));
-$num_elementos = (count($elementos));
-$num_elemento = 0;
 $spreadsheet = new Spreadsheet();
 $sheet = $spreadsheet->getActiveSheet();
 $num_fila = 2;
@@ -156,10 +117,43 @@ $sheet->setCellValue("K1", "Fecha fin de presentación de oferta");
 //$elementos[0]->click();
 $fila = 2;
 $siguiente_pagina=true;
+$num_pagina=0;
 while ($siguiente_pagina) {
-    while ($num_elemento < $num_elementos) {
+    $elementos=[];
+   /* try {
+            $driver= searchGalicia($driver);
+            $elementos = $driver->findElements(WebDriverBy::xpath("//table[@id='myTablaBusquedaCustom']/tbody/tr/td[1]//a"));
+        } catch (Exception $ex) {
+            echo "<p>Excepcion: ";
+            echo $ex->getMessage();
+            echo "</p>";
+        }
+    * 
+    */
+    $num_elementos = 0;
+    $num_elemento = 0;
+ 
+    echo '<h1 color="green">While superior</h1>';
+    do{
+        $driver = searchGalicia($driver);
+        for($a=0;$a<$num_pagina;$a++){
+            $btn_siguiente=$driver->findElement(WebDriverBy::xpath("//input[@title='Siguiente']"));
+            $driver->wait()->until(WebDriverExpectedCondition::elementToBeClickable(WebDriverBy::xpath("//input[@title='Siguiente']")));
+            $btn_siguiente->click();
+        }
+         try {
+            $driver->wait(30, 200)->until(WebDriverExpectedCondition::visibilityOfElementLocated(WebDriverBy::id('myTablaBusquedaCustom')));
+            $elementos = $driver->findElements(WebDriverBy::xpath("//table[@id='myTablaBusquedaCustom']/tbody/tr/td[1]//a"));
+            $num_elementos= count($elementos);
+        } catch (Exception $ex) {
+            echo "<p>Excepcion: ";
+            echo $ex->getMessage();
+            echo "</p>";
+        }
+        echo "<p>Numero de elementos:".count($elementos)."<p>";
         $elementos[$num_elemento]->click();
         //Numero de expediente
+        $driver->wait(50, 500)->until(WebDriverExpectedCondition::visibilityOfElementLocated(WebDriverBy::xpath("//span[text()='Expediente:']/following-sibling::span")));
         $numExpediente = $driver->findElement(WebDriverBy::xpath("//span[text()='Expediente:']/following-sibling::span"));
         echo "<p>Número de expediente: " . $numExpediente->getText() . "</p>";
         //Ubicacion orgánica
@@ -210,22 +204,15 @@ while ($siguiente_pagina) {
                 echo '<a  href="' . $documento->getAttribute('href') . '">Enlace al documento </a>';
             }
         }
-
         $num_elemento++;
-        $driver = searchGalicia($driver);
-        try {
-            $elementos = $driver->findElements(WebDriverBy::xpath("//table[@id='myTablaBusquedaCustom']/tbody/tr/td[1]//a"));
-        } catch (Exception $ex) {
-            echo "<p>Excepcion: ";
-            echo $ex->getMessage();
-            echo "</p>";
-        }
         $fila++;
-    }
+    }while($num_elemento < $num_elementos);
     echo "<p>Salto de página</p>";
     try{
         $btn_siguiente=$driver->findElement(WebDriverBy::xpath("//input[@title='Siguiente']"));
+        $siguiente_pagina++;
         $num_elemento=0;
+        
     } catch (Exception $e){
         $siguiente_pagina=false;
     }
