@@ -1,0 +1,15 @@
+{
+    "name": "marcos/contratos-espana",
+    "type": "project",
+    "authors": [
+        {
+            "name": "marcosrgdev",
+            "email": "marcosrandulfegarrido@gmail.com"
+        }
+    ],
+    "require": {
+        "php-webdriver/webdriver": "^1.8",
+        "phpoffice/common": "^0.2.9",
+        "phpoffice/phpspreadsheet": "^1.15"
+    }
+}
