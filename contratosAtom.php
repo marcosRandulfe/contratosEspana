@@ -10,7 +10,6 @@
  * Url atom licitaciones del estado
  * https://contrataciondelestado.es/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom
  */
-
 require './vendor/autoload.php';
 
     use Goutte\Client;
@@ -23,77 +22,84 @@ require './vendor/autoload.php';
     use Box\Spout\Writer\Common\Creator\WriterEntityFactory;
     use Box\Spout\Common\Entity\Row;
 
-$url_atom ='https://contrataciondelestado.es/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom';
-$link_siguiente="";
-$in_entry=false;
-$link_contrato_actual='';
-$in_cp=false;
-$cp=false;
-$writer = WriterEntityFactory::createODSWriter();
-$writer->openToFile('contratosEspana.ods');
+    $url_atom ='https://contrataciondelestado.es/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom';
+    $link_siguiente="";
+    $in_entry=false;
+    $link_contrato_actual='';
+    $in_cp=false;
+    $cp=false;
+    $writer = WriterEntityFactory::createODSWriter();
+    $writer->openToFile('contratosEspana.ods');
+    $client = new Client();
 
-$host = 'http://localhost:4444/wd/hub';
-$desiredCapabilities = new DesiredCapabilities(array(
-    WebDriverCapabilityType::BROWSER_NAME => "firefox",
- ));
+    $host = 'http://localhost:4444/wd/hub';
+    $desiredCapabilities = new DesiredCapabilities(array(
+        WebDriverCapabilityType::BROWSER_NAME => "firefox",
+     ));
 
-$desiredCapabilities->setCapability(WebDriverCapabilityType::APPLICATION_CACHE_ENABLED,true);
-// Firefox
-$driver = RemoteWebDriver::create($host, DesiredCapabilities::firefox());
+    $desiredCapabilities->setCapability(WebDriverCapabilityType::APPLICATION_CACHE_ENABLED,true);
+    // Firefox
+    $driver = RemoteWebDriver::create($host, DesiredCapabilities::firefox());
 
-function recorrerSpans($spans){
-    $spansRecorridos = 0;
-    $valores=[];
-    while ($spansRecorridos < count($spans)) {
-        $texto = $spans[$spansRecorridos]->getText();
-        if ($texto == "Euros") {
-            unset($spans[$spansRecorridos]);
-            $spans = array_values($spans);
-            $texto = $texto.'€';
-            continue;
+    function recorrerSpans($spans){
+        $spansRecorridos = 0;
+        $valores=[];
+        while ($spansRecorridos < count($spans)) {
+            $texto = $spans[$spansRecorridos]->getText();
+            if ($texto == "Euros") {
+                unset($spans[$spansRecorridos]);
+                $spans = array_values($spans);
+                $texto = $texto.'€';
+                continue;
+            }
+            if ($spansRecorridos % 2 != 0) {
+               $valores[]=$texto;
+               //echo $texto;
+            }
+            $spansRecorridos++;
         }
-        if ($spansRecorridos % 2 != 0) {
-           $valores[]=$texto;
-           //echo $texto;
+        echo "</p>";
+        echo "</div>";
+        return $valores;
+    }
+
+    function obtenerDatos($url){
+        $driver = $GLOBALS['driver'];
+        $datos=[];
+        $driver->get($url);
+        $numExpediente=$driver->findElement(WebDriverBy::xpath("//span[text()='Expediente:']/following-sibling::span"));
+        $datos[]=$numExpediente->getText();
+        echo "<p>Número de expediente: ".$numExpediente->getText()."</p>";
+        //Ubicacion orgánica
+        $localizacion = $numExpediente->findElement(WebDriverBy::xpath('../following-sibling::li/span'));
+        echo "<p>Localización: ".$localizacion->getText()."</p>";
+        $datos[]=$localizacion->getText();
+        $spans = $localizacion->findElements(WebDriverBy::xpath('../../following-sibling::div//li//span'));
+        echo "<h2>Recorrer spans</h2>";
+        echo(var_dump(recorrerSpans($spans)));
+        echo "<h3>Ver datos</h3>";
+        $datos = array_merge($datos, recorrerSpans($spans));
+        echo(var_dump($datos));
+        $spans = $localizacion->findElements(WebDriverBy::xpath("//fieldset[@id='InformacionLicitacionVIS_UOE']/div//span"));
+        $datos = array_merge($datos, recorrerSpans($spans));
+        echo "<p>Array de datos</p>";
+        var_dump($datos);
+        return $datos;
+    }
+
+    function escribirDatos($datos){
+        $row = WriterEntityFactory::createRowFromArray($datos);
+        $GLOBALS['writer']->addRow($row);
+    }
+
+
+    function comporbarCp($cp){
+        $cp_galicia=[36, 15, 32, 27];
+        if (in_array(substr($cp, 0,2),$cp_galicia)) {
+            return true;
         }
-        $spansRecorridos++;
+        return false;
     }
-    echo "</p>";
-    echo "</div>";
-    return $valores;
-}
-
-function obtenerDatos($url){
-    $driver = $GLOBALS['driver'];
-    $datos=[];
-    $driver->get('https://contrataciondelestado.es/wps/portal/!ut/p/b0/04_Sj9CPykssy0xPLMnMz0vMAfIjU1JTC3Iy87KtUlJLEnNyUuNzMpMzSxKTgQr0w_Wj9KMyU1zLcvQjvfNd0pyrLJMLzCPygvNDIoyrVA3Myx1tbfULcnMdAb1CjvI!/');
-    $numExpediente=$driver->findElement(WebDriverBy::xpath("//span[text()='Expediente:']/following-sibling::span"));
-    $datos[]=$numExpediente;
-    echo "<p>Número de expediente: ".$numExpediente->getText()."</p>";
-    //Ubicacion orgánica
-    $localizacion = $numExpediente->findElement(WebDriverBy::xpath('../following-sibling::li/span'));
-    echo "<p>Localización: ".$localizacion->getText()."</p>";
-    $datos[]=$localizacion;
-    $spans = $localizacion->findElements(WebDriverBy::xpath('../../following-sibling::div//li//span'));
-    $datos = array_merge($datos, recorrerSpans($spans));
-    $spans = $localizacion->findElements(WebDriverBy::xpath("//fieldset[@id='InformacionLicitacionVIS_UOE']/div//span"));
-    $datos = array_merge($datos, recorrerSpans($spans));
-    return $datos;
-}
-
-function escribirDatos($datos){
-    $row = WriterEntityFactory::createRow($datos);
-    $GLOBALS['writer']->addRow($row);
-}
-
-
-function comporbarCp($cp){
-    $cp_galicia=[36, 15, 32, 27];
-    if (in_array(substr($cp, 0,2),$cp_galicia)) {
-        return true;
-    }
-    return false;
-}
 
    //Reading XML using the SAX(Simple API for XML) parser 
  
@@ -104,35 +110,33 @@ function comporbarCp($cp){
            $link_siguiente= $attrs['rel'];
        }
        switch ($name){
-           case 'entry':
+           case 'ENTRY':
                 $GLOBALS['in_entry']=true;
                 break;
-           case 'link':
-               $GLOBALS['link_contrato_actual']=$attrs['href'];
+           case 'LINK':
                if($GLOBALS['in_entry']){
-                    $crawler = $client->request('GET', $link_contrato_actual);
+                    $GLOBALS['link_contrato_actual']=$attrs['HREF'];
+                    $crawler = $GLOBALS['client']->request('GET', $GLOBALS['link_contrato_actual']);
+                    echo "<p>Link contrato:".$GLOBALS['link_contrato_actual']."</p>";
                     $numExpediente = $crawler->filterXPath("//span[text()='Expediente:']/following-sibling::span");
                     echo "<p>Número de expediente: ".$numExpediente->text()."</p>";
-                    break;
-                    $localizacion=$crawler->filterXpath("../following-sibling::li/span");
+                    $localizacion=$crawler->filterXpath("//span[text()='Expediente:']/following-sibling::span/../following-sibling::li/span");
                     echo "<p>Localización: ".$localizacion->text()."</p>";
                }
                break;               
-           case 'cbc:PostalZone':
+           case 'CBC:POSTALZONE':
                $GLOBALS['in_cp']=true;
-               break;
-               
+               break;  
             }
-       
    }
    
    // Called to this function when tags are closed 
    function endElements($parser, $name) {
        switch ($name){
-           case 'entry':
+           case 'ENTRY':
                $GLOBALS['in_entry']=false;
                break;
-           case 'cbc:PostalZone':
+           case 'CBC:POSTALZONE':
                $GLOBALS['in_cp']=false;
                break;
                
@@ -146,6 +150,8 @@ function comporbarCp($cp){
            $GLOBALS['cp']=$data;
        }
        if($GLOBALS['in_entry'] && comporbarCp($GLOBALS['cp'])){
+           echo "<p> Url contrato</p>";
+           echo "<p>".$GLOBALS['link_contrato_actual']."</p>";
            $datos=obtenerDatos($GLOBALS['link_contrato_actual']);
            escribirDatos($datos);
        }
@@ -167,7 +173,5 @@ function comporbarCp($cp){
    }
    
    xml_parser_free($parser); // deletes the parser
-   $i = 1;
-   
    $writer->close();
 
