@@ -23,7 +23,7 @@ require './vendor/autoload.php';
     use Box\Spout\Common\Entity\Row;
 
     $url_atom ='https://contrataciondelestado.es/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom';
-    $link_siguiente="";
+    $GLOBALS['link_siguiente']="";
     $in_entry=false;
     $link_contrato_actual='';
     $in_cp=false;
@@ -36,10 +36,6 @@ require './vendor/autoload.php';
         WebDriverCapabilityType::BROWSER_NAME => "firefox",
      ));
     
-    /*$desiredCapabilities->setCapability(
-    'moz:firefoxOptions',
-   ['args' => ['-headless']]
-);*/
     $desiredCapabilities->setCapability(WebDriverCapabilityType::APPLICATION_CACHE_ENABLED,true);
     // Firefox
     $driver = RemoteWebDriver::create($host, DesiredCapabilities::firefox(),30*1000,30*1000);
@@ -110,9 +106,11 @@ require './vendor/autoload.php';
  
    // Called to this function when tags are opened 
    function startElements($parser, $name, $attrs) {
+       echo "<p> Atributos etiquetas".$name." </p>";
        var_dump($attrs);
-       if(array_key_exists("rel", $attrs)){
-           $link_siguiente= $attrs['rel'];
+       if(array_key_exists("REL", $attrs) && $attrs['REL']=='next'){
+           echo "<p> Link siguiente página:".$attrs['HREF']." </p>";
+           $GLOBALS['link_siguiente']= $attrs['HREF'];
        }
        switch ($name){
            case 'ENTRY':
@@ -169,23 +167,33 @@ require './vendor/autoload.php';
            //escribirDatos($datos);
        }
    }
-   
-   // Creates a new XML parser and returns a resource handle referencing it to be used by the other XML functions. 
-   $parser = xml_parser_create(); 
-   
-   xml_set_element_handler($parser, "startElements", "endElements");
-   xml_set_character_data_handler($parser, "characterData");
-   
-   // open xml file
-   if (!($handle = fopen($url_atom, "r"))) {
-      die("could not open XML input");
-   }
-   
-   while($data = fread($handle, 4096)){
-      xml_parse($parser, $data);  // start parsing an xml document 
-   }
-   
-   xml_parser_free($parser); // deletes the parser
-   
-   $GLOBALS['writer']->close();
+   /*
+    * Maximo de hojas que se pueden meter en el ods 2000
+    * 
+    */
+   $num_consultas=1;
+   $num_max_consultas=100;
+    do{
+        // Creates a new XML parser and returns a resource handle referencing it to be used by the other XML functions. 
+        $parser = xml_parser_create(); 
+        xml_set_element_handler($parser, "startElements", "endElements");
+        xml_set_character_data_handler($parser, "characterData");
+        
+         // open xml file
+          if (!($handle = fopen($url_atom, "r"))) {
+           die("could not open XML input");
+          }
+
+          while($data = fread($handle, 4096)){
+               xml_parse($parser, $data);  // start parsing an xml document 
+          }
+
+         xml_parser_free($parser); // deletes the parser
+         $num_consultas++;
+         $url_atom=$GLOBALS['link_siguiente'];
+         echo "<p><i>Número de páginas recorridas:".$num_consultas."</i></p>";
+         echo "<p>Link siguiente en la página: ".$GLOBALS['link_siguiente']."</p>";
+    }while($num_consultas<$num_max_consultas && $GLOBALS['link_siguiente']!=null && $GLOBALS['link_siguiente']!="");
+
+    $GLOBALS['writer']->close();
 
