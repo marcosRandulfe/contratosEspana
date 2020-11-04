@@ -28,18 +28,21 @@ require './vendor/autoload.php';
     $link_contrato_actual='';
     $in_cp=false;
     $cp=false;
-    $writer = WriterEntityFactory::createODSWriter();
-    $writer->openToFile('contratosEspana.ods');
+    $GLOBALS['writer'] = WriterEntityFactory::createODSWriter();
+    $GLOBALS['writer']->openToFile('contratosEspana.ods');
     $client = new Client();
-
     $host = 'http://localhost:4444/wd/hub';
     $desiredCapabilities = new DesiredCapabilities(array(
         WebDriverCapabilityType::BROWSER_NAME => "firefox",
      ));
-
+    
+    /*$desiredCapabilities->setCapability(
+    'moz:firefoxOptions',
+   ['args' => ['-headless']]
+);*/
     $desiredCapabilities->setCapability(WebDriverCapabilityType::APPLICATION_CACHE_ENABLED,true);
     // Firefox
-    $driver = RemoteWebDriver::create($host, DesiredCapabilities::firefox());
+    $driver = RemoteWebDriver::create($host, DesiredCapabilities::firefox(),30*1000,30*1000);
 
     function recorrerSpans($spans){
         $spansRecorridos = 0;
@@ -66,7 +69,8 @@ require './vendor/autoload.php';
     function obtenerDatos($url){
         $driver = $GLOBALS['driver'];
         $datos=[];
-        $driver->get($url);
+        echo "<p>Url consultada: ".stripslashes($url)   ."</p>";
+        $driver->get(stripslashes($url));
         $numExpediente=$driver->findElement(WebDriverBy::xpath("//span[text()='Expediente:']/following-sibling::span"));
         $datos[]=$numExpediente->getText();
         echo "<p>Número de expediente: ".$numExpediente->getText()."</p>";
@@ -88,6 +92,7 @@ require './vendor/autoload.php';
     }
 
     function escribirDatos($datos){
+        echo "<p>Datos</p>";
         $row = WriterEntityFactory::createRowFromArray($datos);
         $GLOBALS['writer']->addRow($row);
     }
@@ -115,13 +120,11 @@ require './vendor/autoload.php';
                 break;
            case 'LINK':
                if($GLOBALS['in_entry']){
-                    $GLOBALS['link_contrato_actual']=$attrs['HREF'];
-                    $crawler = $GLOBALS['client']->request('GET', $GLOBALS['link_contrato_actual']);
-                    echo "<p>Link contrato:".$GLOBALS['link_contrato_actual']."</p>";
-                    $numExpediente = $crawler->filterXPath("//span[text()='Expediente:']/following-sibling::span");
-                    echo "<p>Número de expediente: ".$numExpediente->text()."</p>";
-                    $localizacion=$crawler->filterXpath("//span[text()='Expediente:']/following-sibling::span/../following-sibling::li/span");
-                    echo "<p>Localización: ".$localizacion->text()."</p>";
+                   $GLOBALS['link_contrato_actual']=$attrs['HREF'];
+                   // $crawler = $GLOBALS['client']->request('GET', $GLOBALS['link_contrato_actual']);
+                   // echo "<p> URL actual:".$attrs['HREF']."</p>";
+                   // $datos=obtenerDatos($GLOBALS['link_contrato_actual']);
+                   // escribirDatos($datos);
                }
                break;               
            case 'CBC:POSTALZONE':
@@ -147,13 +150,23 @@ require './vendor/autoload.php';
    function characterData($parser, $data) {
        if($GLOBALS['in_cp']){
            echo "<p>Codigo postal: ".$data."</p>";
-           $GLOBALS['cp']=$data;
+           $cp=$data;
+           echo "<p>Comprobacion del codigo postal en galicia</p>";
+           var_dump(comporbarCp($cp));
+           if(comporbarCp($cp)){
+               $datos = obtenerDatos($GLOBALS['link_contrato_actual']);
+               echo "<p>Vardump datos contrato</p>";
+               var_dump($datos);
+               echo "<p>Escritura de datos</p>";
+               var_dump($datos);
+               escribirDatos($datos);
+           }
        }
-       if($GLOBALS['in_entry'] && comporbarCp($GLOBALS['cp'])){
+       if($GLOBALS['in_entry'] ){
            echo "<p> Url contrato</p>";
            echo "<p>".$GLOBALS['link_contrato_actual']."</p>";
-           $datos=obtenerDatos($GLOBALS['link_contrato_actual']);
-           escribirDatos($datos);
+           //$datos=obtenerDatos($GLOBALS['link_contrato_actual']);
+           //escribirDatos($datos);
        }
    }
    
@@ -173,5 +186,6 @@ require './vendor/autoload.php';
    }
    
    xml_parser_free($parser); // deletes the parser
-   $writer->close();
+   
+   $GLOBALS['writer']->close();
 
