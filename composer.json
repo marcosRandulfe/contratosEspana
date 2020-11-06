@@ -12,6 +12,7 @@
         "phpoffice/common": "^0.2.9",
         "phpoffice/phpspreadsheet": "^1.15",
         "box/spout": "^3.1",
-        "fabpot/goutte": "^4.0"
+        "fabpot/goutte": "^4.0",
+        "google/apiclient": "^2.8"
     }
 }

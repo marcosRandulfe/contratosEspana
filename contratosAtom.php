@@ -21,12 +21,13 @@ require './vendor/autoload.php';
     use Facebook\WebDriver\WebDriverExpectedCondition;
     use Box\Spout\Writer\Common\Creator\WriterEntityFactory;
     use Box\Spout\Common\Entity\Row;
+   
     define("FICHERO", 'contratosEspana.ods');
     
     // -----------------------------------------------------------------------------------
     // ShareWithUser
     // -----------------------------------------------------------------------------------
-    function addShared( $fileId, $userEmail, $role ){
+    function addShared($service, $fileId, $userEmail, $role ){
         // role can be reader, writer, etc
         $userPermission = new Google_Service_Drive_Permission(array(
             'type' => 'user',
@@ -34,11 +35,16 @@ require './vendor/autoload.php';
             'emailAddress' => $userEmail
         ));
         
-        $request = $this->service->permissions->create(
+        $request = $service->permissions->create(
             $fileId, $userPermission, array('fields' => 'id')
         );
     }
+    putenv('GOOGLE_APPLICATION_CREDENTIALS=./contratosEspana.json');
     
+    $googleClient = new \Google\Client();
+    $googleClient->useApplicationDefaultCredentials();
+    $googleClient->addScope(Google_Service_Drive::DRIVE);
+       
     if(file_exists(FICHERO)){
         unlink(FICHERO);
     }
@@ -213,7 +219,7 @@ try{
     * 
     */
    $num_consultas=1;
-   $num_max_consultas=8;
+   $num_max_consultas=2;
     do{
         // Creates a new XML parser and returns a resource handle referencing it to be used by the other XML functions. 
         $parser = xml_parser_create(); 
@@ -240,5 +246,25 @@ try{
     echo $e->getMessage();
     var_dump($e);
 }
+
+
+ $service = new Google_Service_Drive($googleClient);
+
+            //Insert a file
+            $file = new Google_Service_Drive_DriveFile();
+            $file->setName('contratosEspana.ods');
+            $file->setDescription('Contratos de galicia');
+            $file->setMimeType('application/vnd.oasis.opendocument.spreadsheet');
+            $fileId=$file->getId();
+            $data = file_get_contents(FICHERO);
+
+            $createdFile = $service->files->create($file, array(
+                'data' => $data,
+                'mimeType' => 'application/vnd.oasis.opendocument.spreadsheet',
+                'uploadType' => 'multipart'
+            ));
+            addShared($service,$createdFile->getId(), "marcoss.mrgmrg.rg392@gmail.com", "editor");
+            addShared($service,$createdFile->getId(), "jaime.barreiro.laredo@gmail.com", "editor");
+            addShared($service,$createdFile->getId(), "marcosrnadulfegarrido@gmail.com", "editor");
     $GLOBALS['writer']->close();
 
