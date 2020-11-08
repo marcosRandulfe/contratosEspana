@@ -10,7 +10,6 @@
  * Url atom licitaciones del estado
  * https://contrataciondelestado.es/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom
  */
-
 require './vendor/autoload.php';
 
     use Goutte\Client;
@@ -22,152 +21,250 @@ require './vendor/autoload.php';
     use Facebook\WebDriver\WebDriverExpectedCondition;
     use Box\Spout\Writer\Common\Creator\WriterEntityFactory;
     use Box\Spout\Common\Entity\Row;
-
-$url_atom ='https://contrataciondelestado.es/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom';
-$link_siguiente="";
-$in_entry=false;
-$link_contrato_actual='';
-$in_cp=false;
-$cp=false;
-$writer = WriterEntityFactory::createODSWriter();
-$writer->openToFile('contratosEspana.ods');
-
-$host = 'http://localhost:4444/wd/hub';
-$desiredCapabilities = new DesiredCapabilities(array(
-    WebDriverCapabilityType::BROWSER_NAME => "firefox",
- ));
-
-$desiredCapabilities->setCapability(WebDriverCapabilityType::APPLICATION_CACHE_ENABLED,true);
-// Firefox
-$driver = RemoteWebDriver::create($host, DesiredCapabilities::firefox());
-
-function recorrerSpans($spans){
-    $spansRecorridos = 0;
-    $valores=[];
-    while ($spansRecorridos < count($spans)) {
-        $texto = $spans[$spansRecorridos]->getText();
-        if ($texto == "Euros") {
-            unset($spans[$spansRecorridos]);
-            $spans = array_values($spans);
-            $texto = $texto.'€';
-            continue;
-        }
-        if ($spansRecorridos % 2 != 0) {
-           $valores[]=$texto;
-           //echo $texto;
-        }
-        $spansRecorridos++;
+   
+    define("FICHERO", 'contratosEspana.ods');
+    
+    // -----------------------------------------------------------------------------------
+    // ShareWithUser
+    // -----------------------------------------------------------------------------------
+    function addShared($service, $fileId, $userEmail, $role ){
+        // role can be reader, writer, etc
+        $userPermission = new Google_Service_Drive_Permission(array(
+            'type' => 'user',
+            'role' => $role,
+            'emailAddress' => $userEmail
+        ));
+        
+        $request = $service->permissions->create(
+            $fileId, $userPermission, array('fields' => 'id')
+        );
     }
-    echo "</p>";
-    echo "</div>";
-    return $valores;
-}
-
-function obtenerDatos($url){
-    $driver = $GLOBALS['driver'];
-    $datos=[];
-    $driver->get('https://contrataciondelestado.es/wps/portal/!ut/p/b0/04_Sj9CPykssy0xPLMnMz0vMAfIjU1JTC3Iy87KtUlJLEnNyUuNzMpMzSxKTgQr0w_Wj9KMyU1zLcvQjvfNd0pyrLJMLzCPygvNDIoyrVA3Myx1tbfULcnMdAb1CjvI!/');
-    $numExpediente=$driver->findElement(WebDriverBy::xpath("//span[text()='Expediente:']/following-sibling::span"));
-    $datos[]=$numExpediente;
-    echo "<p>Número de expediente: ".$numExpediente->getText()."</p>";
-    //Ubicacion orgánica
-    $localizacion = $numExpediente->findElement(WebDriverBy::xpath('../following-sibling::li/span'));
-    echo "<p>Localización: ".$localizacion->getText()."</p>";
-    $datos[]=$localizacion;
-    $spans = $localizacion->findElements(WebDriverBy::xpath('../../following-sibling::div//li//span'));
-    $datos = array_merge($datos, recorrerSpans($spans));
-    $spans = $localizacion->findElements(WebDriverBy::xpath("//fieldset[@id='InformacionLicitacionVIS_UOE']/div//span"));
-    $datos = array_merge($datos, recorrerSpans($spans));
-    return $datos;
-}
-
-function escribirDatos($datos){
-    $row = WriterEntityFactory::createRow($datos);
-    $GLOBALS['writer']->addRow($row);
-}
-
-
-function comporbarCp($cp){
-    $cp_galicia=[36, 15, 32, 27];
-    if (in_array(substr($cp, 0,2),$cp_galicia)) {
-        return true;
+    putenv('GOOGLE_APPLICATION_CREDENTIALS=./contratosEspana.json');
+    
+    $googleClient = new \Google\Client();
+    $googleClient->useApplicationDefaultCredentials();
+    $googleClient->addScope(Google_Service_Drive::DRIVE);
+       
+    if(file_exists(FICHERO)){
+        unlink(FICHERO);
     }
-    return false;
-}
+    $url_atom ='https://contrataciondelestado.es/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom';
+    $GLOBALS['link_siguiente']="";
+    $in_entry=false;
+    $link_contrato_actual='';
+    $in_cp=false;
+    $cp=false;
+    $GLOBALS['writer'] = WriterEntityFactory::createODSWriter();
+    $GLOBALS['writer']->openToFile('contratosEspana.ods');
+    $client = new Client();
+    $host = 'http://localhost:4444/wd/hub';
+    $desiredCapabilities = new DesiredCapabilities(array(
+        WebDriverCapabilityType::BROWSER_NAME => "firefox",
+     ));
+    
+   $cabecera= ["Número Expediente",
+    "Localización organica",
+    "Órgano de Contratación",
+    "Estado de la Licitación",
+    "Objeto del contrato",
+    "Presupuesto base de licitación sin impuestos",
+    "Valor estimado del contrato",
+    "Tipo de Contrato", 
+    "Código CPV",
+    "Lugar de Ejecución",
+    "Procedimiento de contratación",	
+    "Fecha fin de presentación de oferta"];
+    $GLOBALS['writer']->addRow(WriterEntityFactory::createRowFromArray($cabecera));
+    $desiredCapabilities->setCapability(WebDriverCapabilityType::APPLICATION_CACHE_ENABLED,true);
+    // Firefox
+    $driver = RemoteWebDriver::create($host, DesiredCapabilities::firefox(),40*1000,40*1000);
+try{
+    function recorrerSpans($spans){
+        $spansRecorridos = 0;
+        $valores=[];
+        while ($spansRecorridos < count($spans)) {
+            $texto = $spans[$spansRecorridos]->getText();
+            if ($texto == "Euros") {
+                unset($spans[$spansRecorridos]);
+                $spans = array_values($spans);
+                $texto = $texto.'€';
+                continue;
+            }
+            if ($spansRecorridos % 2 != 0) {
+               $valores[]=$texto;
+               //echo $texto;
+            }
+            $spansRecorridos++;
+        }
+        //echo "</p>";
+        //echo "</div>";
+        return $valores;
+    }
+
+    function obtenerDatos($url){
+        try{
+            $driver = $GLOBALS['driver'];
+            $datos=[];
+            //echo "<p>Url consultada: ".stripslashes($url)   ."</p>";
+            $driver->get(stripslashes($url));
+            $numExpediente=$driver->findElement(WebDriverBy::xpath("//span[text()='Expediente:']/following-sibling::span"));
+            $datos[]=$numExpediente->getText();
+            //echo "<p>Número de expediente: ".$numExpediente->getText()."</p>";
+            //Ubicacion orgánica
+            $localizacion = $numExpediente->findElement(WebDriverBy::xpath('../following-sibling::li/span'));
+            //echo "<p>Localización: ".$localizacion->getText()."</p>";
+            $datos[]=$localizacion->getText();
+            $spans = $localizacion->findElements(WebDriverBy::xpath('../../following-sibling::div//li//span'));
+            //echo "<h2>Recorrer spans</h2>";
+            //echo(var_dump(recorrerSpans($spans)));
+            //echo "<h3>Ver datos</h3>";
+            $datos = array_merge($datos, recorrerSpans($spans));
+            //echo(var_dump($datos));
+            $spans = $localizacion->findElements(WebDriverBy::xpath("//fieldset[@id='InformacionLicitacionVIS_UOE']/div//span"));
+            $datos = array_merge($datos, recorrerSpans($spans));
+            //echo "<p>Array de datos</p>";
+            //var_dump($datos);
+            return $datos;
+        }catch(Exception $e){
+            echo $e;
+            return [];
+        }
+        
+    }
+
+    function escribirDatos($datos){
+        //echo "<p>Datos</p>";
+        $row = WriterEntityFactory::createRowFromArray($datos);
+        $GLOBALS['writer']->addRow($row);
+    }
+
+
+    function comporbarCp($cp){
+        $cp_galicia=[36, 15, 32, 27];
+        if (in_array(substr($cp, 0,2),$cp_galicia)) {
+            return true;
+        }
+        return false;
+    }
 
    //Reading XML using the SAX(Simple API for XML) parser 
  
    // Called to this function when tags are opened 
    function startElements($parser, $name, $attrs) {
-       var_dump($attrs);
-       if(array_key_exists("rel", $attrs)){
-           $link_siguiente= $attrs['rel'];
+       //echo "<p> Atributos etiquetas".$name." </p>";
+       //var_dump($attrs);
+       if(array_key_exists("REL", $attrs) && $attrs['REL']=='next'){
+         //  echo "<p> Link siguiente página:".$attrs['HREF']." </p>";
+           $GLOBALS['link_siguiente']= $attrs['HREF'];
        }
        switch ($name){
-           case 'entry':
+           case 'ENTRY':
                 $GLOBALS['in_entry']=true;
                 break;
-           case 'link':
-               $GLOBALS['link_contrato_actual']=$attrs['href'];
+           case 'LINK':
                if($GLOBALS['in_entry']){
-                    $crawler = $client->request('GET', $link_contrato_actual);
-                    $numExpediente = $crawler->filterXPath("//span[text()='Expediente:']/following-sibling::span");
-                    echo "<p>Número de expediente: ".$numExpediente->text()."</p>";
-                    break;
-                    $localizacion=$crawler->filterXpath("../following-sibling::li/span");
-                    echo "<p>Localización: ".$localizacion->text()."</p>";
+                   $GLOBALS['link_contrato_actual']=$attrs['HREF'];
+                   // $crawler = $GLOBALS['client']->request('GET', $GLOBALS['link_contrato_actual']);
+                   // echo "<p> URL actual:".$attrs['HREF']."</p>";
+                   // $datos=obtenerDatos($GLOBALS['link_contrato_actual']);
+                   // escribirDatos($datos);
                }
                break;               
-           case 'cbc:PostalZone':
+           case 'CBC:POSTALZONE':
                $GLOBALS['in_cp']=true;
-               break;
-               
+               break;  
             }
-       
    }
    
    // Called to this function when tags are closed 
    function endElements($parser, $name) {
        switch ($name){
-           case 'entry':
+           case 'ENTRY':
                $GLOBALS['in_entry']=false;
                break;
-           case 'cbc:PostalZone':
+           case 'CBC:POSTALZONE':
                $GLOBALS['in_cp']=false;
                break;
                
+               
        }
+       flush();
    }
    
    // Called on the text between the start and end of the tags
    function characterData($parser, $data) {
        if($GLOBALS['in_cp']){
-           echo "<p>Codigo postal: ".$data."</p>";
-           $GLOBALS['cp']=$data;
+           //echo "<p>Codigo postal: ".$data."</p>";
+           $cp=$data;
+           //echo "<p>Comprobacion del codigo postal en galicia</p>";
+           //var_dump(comporbarCp($cp));
+           if(comporbarCp($cp)){
+               $datos = obtenerDatos($GLOBALS['link_contrato_actual']);
+             //  echo "<p>Vardump datos contrato</p>";
+             //  var_dump($datos);
+             //  echo "<p>Escritura de datos</p>";
+             //  var_dump($datos);
+               escribirDatos($datos);
+           }
        }
-       if($GLOBALS['in_entry'] && comporbarCp($GLOBALS['cp'])){
-           $datos=obtenerDatos($GLOBALS['link_contrato_actual']);
-           escribirDatos($datos);
+       if($GLOBALS['in_entry'] ){
+           //echo "<p> Url contrato</p>";
+           //echo "<p>".$GLOBALS['link_contrato_actual']."</p>";
+           //$datos=obtenerDatos($GLOBALS['link_contrato_actual']);
+           //escribirDatos($datos);
        }
    }
-   
-   // Creates a new XML parser and returns a resource handle referencing it to be used by the other XML functions. 
-   $parser = xml_parser_create(); 
-   
-   xml_set_element_handler($parser, "startElements", "endElements");
-   xml_set_character_data_handler($parser, "characterData");
-   
-   // open xml file
-   if (!($handle = fopen($url_atom, "r"))) {
-      die("could not open XML input");
-   }
-   
-   while($data = fread($handle, 4096)){
-      xml_parse($parser, $data);  // start parsing an xml document 
-   }
-   
-   xml_parser_free($parser); // deletes the parser
-   $i = 1;
-   
-   $writer->close();
+   /*
+    * Maximo de hojas que se pueden meter en el ods 2000
+    * 
+    */
+   $num_consultas=1;
+   $num_max_consultas=2;
+    do{
+        // Creates a new XML parser and returns a resource handle referencing it to be used by the other XML functions. 
+        $parser = xml_parser_create(); 
+        xml_set_element_handler($parser, "startElements", "endElements");
+        xml_set_character_data_handler($parser, "characterData");
+        
+         // open xml file
+          if (!($handle = fopen($url_atom, "r"))) {
+           die("could not open XML input");
+          }
+
+          while($data = fread($handle, 4096)){
+               xml_parse($parser, $data);  // start parsing an xml document 
+               
+          }
+
+         xml_parser_free($parser); // deletes the parser
+         $num_consultas++;
+         $url_atom=$GLOBALS['link_siguiente'];
+         echo "<p><i>Número de páginas recorridas:".$num_consultas."</i></p>";
+         echo "<p>Link siguiente en la página: ".$GLOBALS['link_siguiente']."</p>";
+    }while($num_consultas<$num_max_consultas && $GLOBALS['link_siguiente']!=null && $GLOBALS['link_siguiente']!="");
+} catch (Exception $e){
+    echo $e->getMessage();
+    var_dump($e);
+}
+
+
+ $service = new Google_Service_Drive($googleClient);
+
+            //Insert a file
+            $file = new Google_Service_Drive_DriveFile();
+            $file->setName('contratosEspana.ods');
+            $file->setDescription('Contratos de galicia');
+            $file->setMimeType('application/vnd.oasis.opendocument.spreadsheet');
+            $fileId=$file->getId();
+            $data = file_get_contents(FICHERO);
+
+            $createdFile = $service->files->create($file, array(
+                'data' => $data,
+                'mimeType' => 'application/vnd.oasis.opendocument.spreadsheet',
+                'uploadType' => 'multipart'
+            ));
+            addShared($service,$createdFile->getId(), "marcoss.mrgmrg.rg392@gmail.com", "editor");
+            addShared($service,$createdFile->getId(), "jaime.barreiro.laredo@gmail.com", "editor");
+            addShared($service,$createdFile->getId(), "marcosrnadulfegarrido@gmail.com", "editor");
+    $GLOBALS['writer']->close();
 
