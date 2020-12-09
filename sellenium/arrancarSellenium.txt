@@ -1,0 +1,3 @@
+comandos arrancar sellenium
+java -jar -Djava.net.preferIPv4Stack=true selenium-server-standalone-3.141.59.jar -role hub
+java -jar -Djava.net.preferIPv4Stack=true selenium-server-standalone-3.141.59.jar -role node -hub http://193.168.0.100:4444/grid/register -port 1414

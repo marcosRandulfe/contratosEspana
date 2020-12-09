@@ -39,11 +39,21 @@ require './vendor/autoload.php';
             $fileId, $userPermission, array('fields' => 'id')
         );
     }
+    //Subir Fichero
+    $googleClient = new Google_Client();
+    // Get your credentials from the console
+   /* $googleClient->setClientId('39513400380-8cu6edlhs67k42t695i4bgscj5h7jar9.apps.googleusercontent.com');
+    $googleClient->setClientSecret('eGxFx-IXrTGdahAJ9VR253H1');
+    $googleClient->setRedirectUri('http://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF']);
+    $googleClient->setScopes(array('https://www.googleapis.com/auth/drive.file'));
+     */   
+    
     putenv('GOOGLE_APPLICATION_CREDENTIALS=./contratosEspana.json');
     
     $googleClient = new \Google\Client();
     $googleClient->useApplicationDefaultCredentials();
     $googleClient->addScope(Google_Service_Drive::DRIVE);
+    //if (isset($_GET['code']) || (isset($_SESSION['access_token']) && $_SESSION['access_token'])) {
        
     if(file_exists(FICHERO)){
         unlink(FICHERO);
@@ -57,13 +67,13 @@ require './vendor/autoload.php';
     $GLOBALS['writer'] = WriterEntityFactory::createODSWriter();
     $GLOBALS['writer']->openToFile('contratosEspana.ods');
     $client = new Client();
-    $host = 'http://localhost:4444/wd/hub';
+    $host = 'http://cactusweb.ddns.net:4444/wd/hub';
     $desiredCapabilities = new DesiredCapabilities(array(
         WebDriverCapabilityType::BROWSER_NAME => "firefox",
      ));
     
    $cabecera= ["Número Expediente",
-    "Localización organica",
+    "Localización orgánica",
     "Órgano de Contratación",
     "Estado de la Licitación",
     "Objeto del contrato",
@@ -73,7 +83,11 @@ require './vendor/autoload.php';
     "Código CPV",
     "Lugar de Ejecución",
     "Procedimiento de contratación",	
-    "Fecha fin de presentación de oferta"];
+    "Fecha fin de presentación de oferta",
+    "Resultado",
+    "Adjudicatario",
+    "Nº de Licitadores Presentados",
+    "Importe de Adjudicación"];
     $GLOBALS['writer']->addRow(WriterEntityFactory::createRowFromArray($cabecera));
     $desiredCapabilities->setCapability(WebDriverCapabilityType::APPLICATION_CACHE_ENABLED,true);
     // Firefox
@@ -92,12 +106,10 @@ try{
             }
             if ($spansRecorridos % 2 != 0) {
                $valores[]=$texto;
-               //echo $texto;
+              
             }
             $spansRecorridos++;
         }
-        //echo "</p>";
-        //echo "</div>";
         return $valores;
     }
 
@@ -105,14 +117,10 @@ try{
         try{
             $driver = $GLOBALS['driver'];
             $datos=[];
-            //echo "<p>Url consultada: ".stripslashes($url)   ."</p>";
             $driver->get(stripslashes($url));
             $numExpediente=$driver->findElement(WebDriverBy::xpath("//span[text()='Expediente:']/following-sibling::span"));
             $datos[]=$numExpediente->getText();
-            //echo "<p>Número de expediente: ".$numExpediente->getText()."</p>";
-            //Ubicacion orgánica
             $localizacion = $numExpediente->findElement(WebDriverBy::xpath('../following-sibling::li/span'));
-            //echo "<p>Localización: ".$localizacion->getText()."</p>";
             $datos[]=$localizacion->getText();
             $spans = $localizacion->findElements(WebDriverBy::xpath('../../following-sibling::div//li//span'));
             //echo "<h2>Recorrer spans</h2>";
@@ -121,6 +129,9 @@ try{
             $datos = array_merge($datos, recorrerSpans($spans));
             //echo(var_dump($datos));
             $spans = $localizacion->findElements(WebDriverBy::xpath("//fieldset[@id='InformacionLicitacionVIS_UOE']/div//span"));
+            if (count($spans)>2 && count($spans)<10) {
+                $datos[]="";
+            }
             $datos = array_merge($datos, recorrerSpans($spans));
             //echo "<p>Array de datos</p>";
             //var_dump($datos);
@@ -151,10 +162,7 @@ try{
  
    // Called to this function when tags are opened 
    function startElements($parser, $name, $attrs) {
-       //echo "<p> Atributos etiquetas".$name." </p>";
-       //var_dump($attrs);
        if(array_key_exists("REL", $attrs) && $attrs['REL']=='next'){
-         //  echo "<p> Link siguiente página:".$attrs['HREF']." </p>";
            $GLOBALS['link_siguiente']= $attrs['HREF'];
        }
        switch ($name){
@@ -164,10 +172,6 @@ try{
            case 'LINK':
                if($GLOBALS['in_entry']){
                    $GLOBALS['link_contrato_actual']=$attrs['HREF'];
-                   // $crawler = $GLOBALS['client']->request('GET', $GLOBALS['link_contrato_actual']);
-                   // echo "<p> URL actual:".$attrs['HREF']."</p>";
-                   // $datos=obtenerDatos($GLOBALS['link_contrato_actual']);
-                   // escribirDatos($datos);
                }
                break;               
            case 'CBC:POSTALZONE':
@@ -197,13 +201,8 @@ try{
            //echo "<p>Codigo postal: ".$data."</p>";
            $cp=$data;
            //echo "<p>Comprobacion del codigo postal en galicia</p>";
-           //var_dump(comporbarCp($cp));
            if(comporbarCp($cp)){
                $datos = obtenerDatos($GLOBALS['link_contrato_actual']);
-             //  echo "<p>Vardump datos contrato</p>";
-             //  var_dump($datos);
-             //  echo "<p>Escritura de datos</p>";
-             //  var_dump($datos);
                escribirDatos($datos);
            }
        }
@@ -219,7 +218,7 @@ try{
     * 
     */
    $num_consultas=1;
-   $num_max_consultas=2;
+   $num_max_consultas=3;
     do{
         // Creates a new XML parser and returns a resource handle referencing it to be used by the other XML functions. 
         $parser = xml_parser_create(); 
@@ -239,21 +238,21 @@ try{
          xml_parser_free($parser); // deletes the parser
          $num_consultas++;
          $url_atom=$GLOBALS['link_siguiente'];
-         echo "<p><i>Número de páginas recorridas:".$num_consultas."</i></p>";
-         echo "<p>Link siguiente en la página: ".$GLOBALS['link_siguiente']."</p>";
+         //echo "<p><i>Número de páginas recorridas:".$num_consultas."</i></p>";
+         //echo "<p>Link siguiente en la página: ".$GLOBALS['link_siguiente']."</p>";
     }while($num_consultas<$num_max_consultas && $GLOBALS['link_siguiente']!=null && $GLOBALS['link_siguiente']!="");
 } catch (Exception $e){
-    echo $e->getMessage();
+    //echo $e->getMessage();
     var_dump($e);
 }
-
+$GLOBALS['writer']->close();
 
  $service = new Google_Service_Drive($googleClient);
 
             //Insert a file
             $file = new Google_Service_Drive_DriveFile();
-            $file->setName('contratosEspana.ods');
-            $file->setDescription('Contratos de galicia');
+            $file->setName(FICHERO);
+            $file->setDescription('Contratos y licitaciones del estado');
             $file->setMimeType('application/vnd.oasis.opendocument.spreadsheet');
             $fileId=$file->getId();
             $data = file_get_contents(FICHERO);
@@ -263,8 +262,11 @@ try{
                 'mimeType' => 'application/vnd.oasis.opendocument.spreadsheet',
                 'uploadType' => 'multipart'
             ));
-            addShared($service,$createdFile->getId(), "marcoss.mrgmrg.rg392@gmail.com", "editor");
-            addShared($service,$createdFile->getId(), "jaime.barreiro.laredo@gmail.com", "editor");
-            addShared($service,$createdFile->getId(), "marcosrnadulfegarrido@gmail.com", "editor");
-    $GLOBALS['writer']->close();
+            addShared($service,$createdFile->getId(), "marcoss.mrgmrg.rg392@gmail.com", "writer");
+            //addShared($service,$createdFile->getId(), "jaime.barreiro.laredo@gmail.com", "writer");
+            addShared($service,$createdFile->getId(), "marcosrandulfegarrido@gmail.com", "writer");
+            
 
+
+
+        
